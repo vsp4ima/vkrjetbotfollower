@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# venv
+venv/
+.venv/
+env/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Веса нейросетевых моделей — скачиваются автоматически
+*.pt
+*.onnx
+
+# Логи и фото
+photos/
+*.log
+
+# Видео и крупные бинарники
+*.mp4
+*.mov
+*.avi
+
+# Локальные тестовые данные
+test_data/
