@@ -41,7 +41,12 @@ MODEL_PATH   = 'yolov8n.pt'
 PERSON_CLS   = 0
 CONF_THRESH  = 0.5
 
-FOCAL_FACTOR = 1600.0
+FOCAL_FACTOR = 2117.0
+STOP_WIDTH_RATIO      = 0.45
+WIDTH_ZONE_STOP_DIST  = 0.5
+WIDTH_ZONE_DRIVE_DIST = 5.0
+TOP_CLIP_MARGIN       = 5
+BOT_CLIP_MARGIN       = 5
 DIST_MIN_M   = 1.0
 DIST_MAX_M   = 1.7
 
@@ -142,7 +147,19 @@ class PersonTracker:
         return boxes[idx], self.target_id
 
 
-def estimate_distance_m(bbox_h):
+def estimate_distance_m(bbox, frame_shape):
+    if bbox is None:
+        return 0.0
+    H, W = frame_shape[0], frame_shape[1]
+    x1, y1, x2, y2 = map(int, bbox)
+    bbox_h = y2 - y1
+    bbox_w = x2 - x1
+    top_clipped    = y1 <= TOP_CLIP_MARGIN
+    bottom_clipped = y2 >= H - 1 - BOT_CLIP_MARGIN
+    if top_clipped or bottom_clipped:
+        if bbox_w >= W * STOP_WIDTH_RATIO:
+            return WIDTH_ZONE_STOP_DIST
+        return WIDTH_ZONE_DRIVE_DIST
     if bbox_h <= 0:
         return 0.0
     return FOCAL_FACTOR / bbox_h
@@ -199,8 +216,16 @@ def draw_hud(frame, *, state, cmd, dx=None, dist=None, bbox=None, tid=None):
     cv2.putText(frame, f'CMD:   {cmd}', (10, 50),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
     if dx is not None and dist is not None:
+        zone_label = '-'
+        if bbox is not None:
+            x1b, y1b, x2b, y2b = map(int, bbox)
+            if y1b <= TOP_CLIP_MARGIN or y2b >= h - 1 - BOT_CLIP_MARGIN:
+                ratio = (x2b - x1b) / w
+                zone_label = f'WIDTH({ratio:.2f})'
+            else:
+                zone_label = 'HEIGHT'
         cv2.putText(frame,
-                    f'dx={dx:+d}px  D={dist:.2f}m  target=[{DIST_MIN_M};{DIST_MAX_M}]m',
+                    f'dx={dx:+d}px  D={dist:.2f}m  zone={zone_label}',
                     (10, h - 15),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 0), 1)
 
@@ -263,9 +288,8 @@ def main():
                     state = 'ALIGN'
                 x1, y1, x2, y2 = map(int, bbox)
                 bx = (x1 + x2) // 2
-                bh = y2 - y1
                 dx = bx - frame.shape[1] // 2
-                dist = estimate_distance_m(bh)
+                dist = estimate_distance_m(bbox, frame.shape)
                 state, cmd, last_align_ts = decide(
                     state, dx, dist, now, last_align_ts
                 )
